@@ -1,0 +1,28 @@
+mkfilter - Design package for digital filters
+
+For further information, read the PostScript documentation in the file
+"doc.ps.gz" in this directory.
+
+There is a World Wide Web form-based front end to this package at
+
+    http://www-users.cs.york.ac.uk/~fisher/mkfilter
+
+Dr A.J. Fisher <fisher@minster.york.ac.uk>
+4 Mar 1998 / 1 Sep 1999
+
+---
+
+- Ported to compile on linux/cygwin
+- Cleaned up Makefile system
+- Added two new options -R and -A.
+  -A lets you to specify alpha*SAMPLERATE instead of alpha so that sample 
+  -R lets you specify the sample rate
+
+  This way, the sample rate can be decided at build time instead of having
+  to be embedded it in every alpha value specified in a .F file.  All .F 
+  files were changed to use -A -R instead of -a, so they specify Hz and 
+  not Hz/samplerate.
+
+19 Aug 2006
+
+Randy Rossi

@@ -1,0 +1,47 @@
+<HTML>
+
+<title> Hardware requirements </title>
+
+<h1> Hardware requirements </h1>
+
+<hr>
+
+If you want to run the code without change, you will need a
+<a href=http://www.sgi.com/Products/Indy> Silicon Graphics Indy
+workstation. </a> The program is written in C, and could no doubt be ported to
+other computers with audio input and output facilities.	 Do not attempt this
+unless your computer is <i>fast</i> - an Indy can, for example, compute a
+double-precision floating-point arctangent (atan2) in 2.94 us, in which time a
+Z80 - to set up a straw man - is within hailing distance of completing a single
+16-bit integer addition (ADC) instruction.
+<p>
+You do <i>not</i> need a fax modem - that would rather defeat the object of the
+exercise.  You <i>do</i> need an isolation device which will pass audio signals
+unchanged from the 'phone exchange to your Indy and <i>vice versa</i>, and
+protect both exchange and Indy from (e.g.) lightning strikes on the 'phone line
+or disastrous power supply failures in the Indy.
+<p>
+In the USA such an isolation device is called a <i>Data Access Arrangement</i>
+(DAA), and is available at low cost from (e.g.) <a href=//www.cermetek.com/> Cermetek. </a>
+<p>
+In the UK things are a little more complicated.	 There is a Post Office
+approved device called a <i>Line Terminating Unit</i> (LTU), made by GEC
+Plessey around 1980 for the Viewdata trials, which does the job.  A basic LTU
+consists of little more than an isolating transformer (price ~&#163;2.50 from RS
+or Farnell) and a relay (about the same price, from the same suppliers).  In
+the UK an LTU must be approved by BABT before you connect it to a 'phone line -
+you'll need one of <a href=sticker.gif> these. </a>
+<p>
+If you want to see a circuit for a (rather high quality - some might say
+over-engineered) LTU, there's a scanned-in image of one <a href=ltu.html>
+here. </a>  Sorry about the poor image quality.	 This one was designed for a
+student project, to be used on an exchange line simulator, so it doesn't have a
+<a href=sticker.gif> you-know-what. </a>
+
+<hr>
+
+<address>
+<a href=/~fisher> Tony Fisher </a> /
+fisher@minster.york.ac.uk
+</address>
+

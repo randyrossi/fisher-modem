@@ -1,0 +1,240 @@
+<HTML>
+
+<title> pstog3, modem - Fax Modem Software </title>
+
+<h1> pstog3, modem - Fax Modem Software </h1>
+
+<hr>
+
+<h2> 1. Introduction </h2>
+
+This is a pair of programs which make an SGI Indy workstation behave like a
+fax machine, for transmission of PostScript documents to a remote fax machine.
+<p>
+The first program, <tt>pstog3</tt>, is a filter which converts a
+PostScript file into Group 3 fax format.  The second, <tt>modem</tt>, takes
+a document in Group 3 fax format, generates the appropriate tones using the
+Indy audio output hardware, and squirts them down the 'phone line through a
+PO-approved isolation device.  The result is that the PostScript document
+appears on a remote fax machine.
+<p>
+Full error checking is performed, and you can be confident that a fax has
+been delivered if and only if the confirmation message ``Success - delivered
+<i>n</i> pages'' is displayed.
+<p>
+It is not at present possible to <i>receive</i> faxes by these means.  For
+this reason, all faxes sent by these programs give the number of the office
+fax machine (+44 1904 432767) as the identification of the originating
+machine.
+<p>
+<tt>modem</tt> can also behave as a conventional
+(non-fax) modem for interactive use of remote computers over a telephone line.
+Both originate and answer modes are supported.
+
+<h2> 2. Examples </h2>
+
+Sending a fax:
+
+<ul>
+<tt> $ rlogin indy009				       </tt><br>
+<tt> $ cat file.ps | pstog3 | modem -fax +441904432767 </tt><br>
+<tt> $ ^D					       </tt><br>
+</ul>
+
+Calling the University dial-in modem bank (why?!)
+
+<ul>
+<tt> $ rlogin indy009				       </tt><br>
+<tt> $ modem -V22o +441904433830		       </tt><br>
+<tt> $ ^D					       </tt><br>
+</ul>
+
+(The programs <tt>pstog3</tt> and <tt>modem</tt> are in
+<tt>/usr/fisher/mipsbin</tt>.)
+
+<h2> 3. The program ``pstog3'' </h2>
+
+This filter converts PostScript into Group 3 fax format, a binary format
+understood by all modern fax machines.
+The input (on standard input) must be conforming PostScript, possibly
+describing a multi-page document.  The output (on standard output)
+consists of a header, which contains a ``magic number''
+(identifying the format as Group 3) and density information, followed by
+concatenated bitmap images of each page.
+
+<h3> 3.1. Usage: </h3>
+
+<ul>
+<tt>pstog3 [-{lvn}]</tt>
+</ul>
+
+The optional argument <tt>-l</tt> specifies low vertical resolution,
+<i>viz.</i> 100 dots per inch (dpi).  The default is 200 dpi.  The lower
+resolution is required by some fax machines (see <tt>modem</tt> below).
+The horizontal resolution is always 200 dpi.
+<p>
+The optional argument <tt>-v</tt> specifies ``verbose'' mode: if you give this
+option, the program displays the page number of each page as it processes it.
+<p>
+If <tt>-n</tt> is specified, the header is omitted.  This makes the output
+suitable for input to the <tt>pbm</tt> package for further conversion, but
+unsuitable for <tt>modem</tt>, since the resolution information, which
+<tt>modem</tt> needs, is conveyed in the header.
+
+<h3> 3.2. Diagnostics </h3>
+
+The message ``<tt>GhostScript failed!</tt>'' indicates that the input is not
+conforming PostScript.	The most common reasons are (1) it's not any sort of
+PostScript - you gave it the wrong sort of file; and (2) it's encapsulated
+PostScript, which has had its <tt>showpage</tt>s removed.  If it will print on
+a PostScript printer, it ought to be acceptable to <tt>pstog3</tt>.
+
+<h2> 4. The program ``modem'' </h2>
+
+This program emulates a modem.	In the ``fax'' mode, it accepts a Group 3
+document from standard input and interacts, via a 'phone line, with a remote
+fax machine, causing the document to be printed on the remote machine.	In
+the ``modem'' mode, it behaves like a ``terminal emulator'':  it calls a remote
+modem (presumably connected to a computer) and then transfers characters from
+the keyboard (standard input) to the remote modem, and simultaneously from the
+remote modem to the screen (standard output).
+
+<h3> 4.1. Usage: </h3>
+
+<ul>
+<tt> modem [-{vmp7}] {-<i>mode</i> | -fax} [-bps <i>bps</i> ...] [+<i>telnum</i> | -ans] </tt><br>
+</ul>
+
+<h4> 4.1.1. Modem mode </h4>
+
+<tt>-<i>mode</i></tt> is one of:
+<tt>-V21o</tt>, <tt>-V21a</tt>, <tt>-V22o</tt>, <tt>-V22a</tt>, <tt>-V23o</tt> or <tt>-V23a</tt>.
+This parameter specifies the transmission standard for an interactive (non-fax) modem session.	The ``a'' variants are
+``answer mode'' (used by the modem at the called end of the link) and the ``o'' variants are ``originate mode''
+(used by the modem at the calling end).
+V.21 is a 300 baud standard, and V.23 is a 1200/75
+baud standard, now little used.	 More useful are V.22 (1200 bps full-duplex DPSK)
+and V.22 <i>bis</i> (2400 bps [bits per second] full-duplex DPSK), which are selected by the <tt>-V22[oa]</tt> option.	The
+program ``handshakes'' with the remote modem, and the <i>bis</i> (2400 bps) variety will be selected if the other modem
+can handle it, which is almost always the case.	 To force V.22 (1200 bps) or V.22 <i>bis</i> (2400 bps),
+use the <tt>-bps 1200</tt> or <tt>-bps 2400</tt> parameter (respectively) with <tt>-V22[oa]</tt>.
+<p>
+Faster speeds will probably be available in later versions of the software!
+For more information, see the appropriate <a href=http://info.itu.ch/itudoc/itu-t/rec/v.html>
+ITU V-series recommendation </a> or the
+<a href=http://info.itu.ch> ITU's World Wide Web home page. </a>
+
+<h4> 4.1.2. Fax mode </h4>
+
+If you specify <tt>-fax</tt> instead of <tt>-<i>mode</i></tt>, the program
+accepts a Group 3 fax document (possibly
+multi-page) from standard input and sends it to the specified fax machine.
+<p>
+A 200 dpi fax takes up to twice as long to send as a 100 dpi one.
+Not all fax machines support 200 dpi.  If you see a message
+
+<ul>
+<tt>*** Info: Remote fax can't do 200 dpi; try -l </tt>
+</ul>
+
+re-create the Group 3 file by running <tt>pstog3</tt>, this time specifying
+<tt>-l</tt> on the <tt>pstog3</tt> command line, and re-run the <tt>modem</tt>
+command.
+
+<h4> 4.1.3. Other options </h4>
+
+The <tt>-v</tt> option specifies ``verbose'' mode:  if you give this
+option, the program displays low-level protocol information as it progresses.
+<p>
+The <tt>-m</tt> option means ``route via Mercury 131'':	 you will be prompted
+for a Mercury PIN, which will not be echoed to the screen, and ``131...'' will be
+prefixed to the specified number.
+<p>
+If you specify <tt>-p</tt>, the call will be logged as ``private'' (rather than
+``departmental''):  someone will come chasing you for payment, which ought to be
+less than &#163;1 per page!
+<p>
+<tt>-7</tt> forces 7-bit communication:	 the parity bit will be stripped (set to
+zero) in transmissions to and from the remote modem.
+<p>
+Telephone numbers are given in international form, even for U.K. numbers,
+local numbers, and University extensions; see <b>Examples</b> above.  If you specify
+<tt>-ans</tt> instead of a telephone number, the modem ``picks up'' the line and gives the
+standard V.25 answering sequence, instead of dialing a number.	This option is used on
+dial-in modem lines in conjunction with auto-answer (ring-detect) hardware and software.
+If you specify <tt>-ans</tt>, you will generally use an ``a'' mode (e.g. <tt>-V22a</tt>);
+If you specify a telephone number, you will generally use an ``o'' mode (e.g. <tt>-V22o</tt>).
+
+<h3> 4.2. Diagnostics </h3>
+
+Messages of the form
+
+<ul>
+<tt>*** Info:</tt> ...
+</ul>
+
+give you information; they are not error messages, even dire-sounding ones like
+
+<ul>
+<tt>*** Info: Checksum error</tt>
+</ul>
+
+Messages of the form
+
+<ul>
+<tt>*** Error:</tt>  ...
+</ul>
+
+indicate that something has gone wrong, and the document could not be
+delivered.  If you see:
+
+<ul>
+<tt> *** Info: Success - delivered <i>n</i> pages </tt>
+</ul>
+
+you can be confident that the document has been delivered successfully and in
+its entirety.
+
+<h3> 4.3. Bugs </h3>
+
+The program has been tested on only a small number of fax machines.  It ought
+to work with all modern, fast machines; older machines might use an older
+version of the protocol, in which case you might see the message
+
+<ul>
+<tt> *** Error: Remote fax can't do V.29 </tt>
+</ul>
+
+There might possibly be problems sending to faxes which are answered manually,
+or which share a line with a telephone or an answering machine:	 fax switches
+are notoriously temperamental.
+<p>
+Note that V.27<i>ter</i> is not implemented.  This is an older, slower
+standard than V.29.  Despite being older and slower, it's more complicated to
+implement.
+<p>
+The ITU standards documents are no longer free.
+
+<h2> 5. Resource implications </h2>
+
+<tt>modem</tt> will of course only work on an Indy which has a suitable
+approved connection to a 'phone line.  For the present, that means indy009
+(which is mine).  All usage of <tt>modem</tt> is logged; the Mercury PIN
+however is not stored in the log file - you'll have to take my word for that.
+The only cost involved, in realistic terms (e.g. neglecting the cost of
+electricity to run the hardware), is the cost of the 'phone call.  I suppose a
+realistic <i>modus operandi</i> for potential users is to restrict their use
+to departmental business only, unless the <tt>-m</tt> or <tt>-p</tt> switch
+is used. <p>
+
+My 'phone can't make international calls, so your faxes are restricted, for the
+moment, to destinations in the U.K.  If you have a personal Mercury 131 account,
+however, you can send personal faxes anywhere, at any time. <p>
+
+<hr>
+
+<address>
+   <a href=/~fisher> Tony Fisher </a> /
+   fisher@minster.york.ac.uk
+</address>
+

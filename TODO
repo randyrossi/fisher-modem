@@ -1,0 +1,69 @@
+KNOWN BUGS
+	Do proper newlines after hayes commands
+        Fix stdinexception when /dev/ttyz0 is disconnected
+
+INVESTIGATION
+	my_alarm commented out but need to replace with something else
+	rateword needs to be copied and reset after each use
+
+GENERAL
+	don't use exceptions, is slower in c++ to try/catch
+	get rid of virtual function calls for high volume loops?(get/put byte)
+	make sure all global veriables are removed
+	add sample in recorder and playback ability
+	move v8 back into v8rx/tx classes to keep Modem cleaner
+	move tx/rxloop back into v21rx/tx classes to keep Modem cleaner
+	abort connect/answer or handshake on any character press during
+	remove args and use hayes to control v21/v23/v32/v34 etc
+        Find out why the bluetooth stack doesn't block!  Get rid of the
+        fake throttle if possible.
+
+HAYES
+
+    ATMn - nothing for software modem
+    ATLn - nothing for software modem
+    A/ - repeat last
+    ATIn
+    ATZn - reset to profile n
+    AT&Fn - factory reset
+    AT&Jn - noop
+    AT&V - view config
+    AT&Wn
+    AT&Yn
+    AT&Zn=x
+    ATS0=1
+    AT+MS=x,x
+
+    Registers To Add:
+	pulse tone length ms
+	pulse tone dialing delay ms
+	audible bell yes/no
+	look at other real modem registers
+
+Notes to self:
+
+Terminal: input runner thread
+	blocking read from stdin (1 sec timeout for stop check)
+	produces into intermediate character buffer
+
+Terminal: output runner thread
+	blocks on empty intermediate character buffer
+	if not empty, writes to stdout
+
+Modem: txloop thread
+	blocking read on intermediate sample buffer (if not full yet)
+	put char to intermediate char buffer
+
+Modem: rxloop thread
+	read from intermediate char buffer 
+	put char to intermediate sample buffer (blocks if full)
+
+SampleDevice: inputrunner thread
+	blocking read on device
+	writes to intermediate sample buffer (double buffer)
+
+SampleDevice: outputrunner thread
+	read from intermediate sample buffer (double buffer)
+	blocking write to device (double buffer)
+
+If a device doesn't actually block on read/write, we fake it using usleep.
