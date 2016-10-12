@@ -1,12 +1,12 @@
-#FischerSoftModem v1.0
+#FisherSoftModem v1.0
 
 ##What is this?
 
-This is a rewrite of Dr. Tony Fischer's software modem for Linux. All the functionality of the original software modem has been ported and several more features have been added.
+This is a rewrite of Dr. Tony Fisher's software modem for Linux. All the functionality of the original software modem has been ported and several more features have been added.
 
-##About Tony Fischer
+##About Tony Fisher
 
-Tony Fischer was a professor of computer science at York University where he taught courses on embedded microcomputer systems design, digital signal processing, and data communications. .  Unfortunately, he died at age 43 from cancer.  A tribute to Tony Fischer can be found here:
+Tony Fisher was a professor of computer science at York University where he taught courses on embedded microcomputer systems design, digital signal processing, and data communications. .  Unfortunately, he died at age 43 from cancer.  A tribute to Tony Fisher can be found here:
 
 	http://www-users.cs.york.ac.uk/~fisher/tribute.html
 
@@ -18,7 +18,7 @@ A cached copy of the above URLs are found in the 'fisher' directory in case they
 
 ##What's Changed
 
-For those familiar with Dr. Fischer's original software modem project, here is a summary of what has changed:
+For those familiar with Dr. Fisher's original software modem project, here is a summary of what has changed:
 
 * Co-routines were replaced by threads.  I didnt want to rely on a co-routine library so I used the pthread library instead.  For the most part it was possible for producer routines to run concurrently with consumers. However, sometimes the original code was written in such a way so that it relied on the two ping-ponging back and forth.  In those cases, I maintained that behaviour using semaphores.  I also made sure that reset functionality remained in tact as this was important for certain modes.
 
@@ -49,11 +49,11 @@ For those familiar with Dr. Fischer's original software modem project, here is a
 
 * V.32 originate
 
-	I'm not sure if this mode ever worked.  It gets up to MSTATE=2 but never seems to read the rates its expecting.  It is difficult to test since it requires a real modem answering.
+I'm not sure if this mode ever worked.  It gets up to MSTATE=2 but never seems to read the rates its expecting.  It is difficult to test since it requires a real modem answering.
 
 * V.34 originate
 
-	This mode emits tones but I don't think it was ever finished by Dr. Fischer.  The handshake sequence may be done but there is no data mode.
+This mode emits tones but I don't think it was ever finished by Dr. Fisher.  The handshake sequence may be done but there is no data mode.
 
 ##What Can I Do With This?
 
@@ -91,7 +91,7 @@ As mentioned earlier, the command line flags were removed and replaced with a sm
              9 = .v32 @ 9600 (originate only)
             11 = .v34 (unfinished)
             97 = Experimental1 V23 FSK 1200 bps full duplex
-            98 = Experimental2 V29 QAM 9600 bps full duplex
+            98 = Experimental2 V29 QAM 9600 bps full duplex (o both ends)
             99 = .v29 fax mode
 
     and v8 can be one of
@@ -109,7 +109,7 @@ A sound card's output does not feedback into its input like a real phone line.  
 
 Mode 97 uses the same FSK modulation for the 1200 bps downstream communication used in .v23 but for both directions giving 1200 bps full duplex.
 
-Mode 98 uses the same QAM modulation for the 9600 bps half duplex fax mode but uses it for both directions simultaneously for full duplex.
+Mode 98 uses the same QAM modulation for the 9600 bps half duplex fax mode but uses it for both directions simultaneously for full duplex.  You have to put the modem in originate mode on both ends for this to work (i.e. ATDT####)
 
 These modes would not work over a phone line but might work across a soundcard connection, for example.
 

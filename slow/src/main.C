@@ -167,7 +167,7 @@ static ModemOptions* getOptions(int argc, char** argv) {
 }
 
 static void usage() {
-  fprintf(stderr, "FischerSoftModem 0.1\n\n");
+  fprintf(stderr, "FisherSoftModem 1.0\n\n");
   fprintf(stderr,
           "Usage: modem [-a|-b|-s|-m1|-m2] [-t addr] [-c channel] [-v] [-d "
           "ttydevice]\n");
