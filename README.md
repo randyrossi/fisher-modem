@@ -27,7 +27,7 @@ For those familiar with Dr. Fisher's original software modem project, here is a 
 * Instead of taking command line arguments, the program behaves like a Hayes compatible modem.  It will accept AT commands to dial/answer/change registers etc.  Of course, not all commands are available but most of what you need is there.  A complete list of supported AT commands is listed below.
 
 * I added the ability to create a psuedo terminal device (like /dev/pts/#) so a conventional terminal program can use this as though it were a real modem device.  Any program expecting Hayes commands should work (like minicom or PPP scripting).  By default, stdin/stdout is used unless a tty device name is given at startup.
-	  Example: modem -d /dev/ptmx
+	  Example: modem -term /dev/ptmx
 
 * The destination device is abstracted as a SamplingDevice so other types of input/output devices can be plugged in.  The three supported types (so far) are Dsp (for libsoundalsa), MemPipe (for shared memory) and Bluetooth.  The shared memory lets one test both ends of a connection without actually using a sound card but only works for the modes that implement both originate and answer.
 
@@ -91,7 +91,7 @@ As mentioned earlier, the command line flags were removed and replaced with a sm
              9 = .v32 @ 9600 (originate only)
             11 = .v34 (unfinished)
             97 = Experimental1 V23 FSK 1200 bps full duplex
-            98 = Experimental2 V29 QAM 9600 bps full duplex (o both ends)
+            98 = Experimental2 V29 QAM 9600 bps full duplex 
             99 = .v29 fax mode
 
     and v8 can be one of
@@ -118,12 +118,12 @@ These modes would not work over a phone line but might work across a soundcard c
 Sending and receiving a fax works. You can test this locally by using the shared mem pipe device.  The code is currently hard coded to send the fax located in doc/TestFax.g3 and receive it as ReceivedFax.g3 in the current directory.
 
     shell1:
-      modem -m1
+      modem -dev mempipe1
       at+MS=99,0
       atdt1234
 
     shell2:
-      modem -m2
+      modem -dev mempipe2
       at+MS=99,0
       ata
 

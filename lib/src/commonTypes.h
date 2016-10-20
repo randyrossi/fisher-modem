@@ -3,6 +3,7 @@
 
 namespace CommonTypes {
 enum EndPoint {
+  UNSPECIFIED,
   ENDPOINT_1,
   ENDPOINT_2,
 };

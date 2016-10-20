@@ -222,9 +222,12 @@ Modem::~Modem() {
   delete this->hayes;
 }
 
-void Modem::open() {
-  samplingDevice->dopen();
+int Modem::open() {
+  if (samplingDevice->dopen() < 0) {
+    return -1;
+  }
   terminalDevice->dopen();
+  return 0;
 }
 
 void Modem::close() {

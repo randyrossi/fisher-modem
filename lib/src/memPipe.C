@@ -16,9 +16,6 @@
 
 #define MODULE_NAME "memPipe"
 
-//#define RECORD_OUTPUT
-//#define RECORD_INPUT
-
 MemPipe::MemPipe(CommonTypes::EndPoint endPoint)
     : SamplingDevice(SIGNED_8BIT_PCM) {
   this->endPoint = endPoint;
@@ -92,25 +89,44 @@ int MemPipe::dopen() {
   dspOutBufPos = 0;
   dspInBufPos = 0;
 
-#ifdef RECORD_OUTPUT
-  if (endPoint == CommonTypes::ENDPOINT_1) {
-    fpo = fopen("c:\\sndout_o", "w");
-  } else {
-    fpo = fopen("c:\\sndout_a", "w");
+  if (devOutMode == DEV_OUT_RECORD) {
+    if (endPoint == CommonTypes::ENDPOINT_1) {
+      fpo = fopen("sndout_o", "w");
+    } else {
+      fpo = fopen("sndout_a", "w");
+    }
+  } else if (devOutMode == DEV_OUT_PLAY_FROM_FILE) {
+    if (endPoint == CommonTypes::ENDPOINT_1) {
+      fpo = fopen("sndout_o", "r");
+    } else {
+      fpo = fopen("sndout_a", "r");
+    }
   }
-#endif
-#ifdef RECORD_INPUT
-  if (endPoint == CommonTypes::ENDPOINT_1) {
-    fpi = fopen("c:\\sndin_o", "w");
-  } else {
-    fpi = fopen("c:\\sndin_a", "w");
+
+  if (devInMode == DEV_IN_RECORD) {
+    if (endPoint == CommonTypes::ENDPOINT_1) {
+      fpi = fopen("sndin_o", "w");
+    } else {
+      fpi = fopen("sndin_a", "w");
+    }
+  } else if (devInMode == DEV_IN_PLAY_FROM_FILE) {
+    if (endPoint == CommonTypes::ENDPOINT_1) {
+      fpi = fopen("sndin_o", "r");
+    } else {
+      fpi = fopen("sndin_a", "r");
+    }
   }
-#endif
 
   return 0;
 }
 
 void MemPipe::dclose() {
+  if (devInMode == DEV_OUT_RECORD || devInMode == DEV_OUT_PLAY_FROM_FILE) {
+    fclose(fpo);
+  }
+  if (devInMode == DEV_IN_RECORD || devInMode == DEV_IN_PLAY_FROM_FILE) {
+    fclose(fpi);
+  }
   // Now free up all the memory and close handles
   shmdt(dspOutBuf);
   shmdt(dspInBuf);
@@ -124,10 +140,12 @@ void MemPipe::putByte(unsigned char b) {
   dspOutBuf[dspOutBufPos] = b;
   dspOutBufPos++;
   if (dspOutBufPos >= dspOutBufSize) {
-#ifdef RECORD_OUTPUT
-    fwrite(dspOutBuf, 1, dspOutBufSize, fpo);
-    fflush(fpo);
-#endif
+    if (devOutMode == DEV_OUT_RECORD) {
+      fwrite(dspOutBuf, 1, dspOutBufSize, fpo);
+      fflush(fpo);
+    } else if (devOutMode == DEV_OUT_PLAY_FROM_FILE) {
+      fread(dspOutBuf, 1, dspOutBufSize, fpo);
+    }
     if (endPoint == CommonTypes::ENDPOINT_1) {
       v(END1_PRODUCER_SIG_END2_CONSUME_OK);
       usleep(500000);  // 1/2 sec
@@ -148,11 +166,13 @@ unsigned char MemPipe::getByte() {
     } else {
       p(END2_PRODUCER_SIG_END1_CONSUME_OK);
     }
-#ifdef RECORD_INPUT
-    fwrite(dspInBuf, 1, dspInBufSize, fpi);
-    fflush(fpi);
-#endif
     memcpy(localInBuf, dspInBuf, dspInBufSize);
+    if (devInMode == DEV_IN_RECORD) {
+      fwrite(localInBuf, 1, dspInBufSize, fpi);
+      fflush(fpi);
+    } else if (devInMode == DEV_IN_PLAY_FROM_FILE) {
+      fread(localInBuf, 1, dspInBufSize, fpi);
+    }
     if (endPoint == CommonTypes::ENDPOINT_2) {
       v(END2_CONSUMER_SIG_END1_PRODUCE_OK);
     } else {

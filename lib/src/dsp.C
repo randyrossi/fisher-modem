@@ -18,11 +18,8 @@
 #include "SamplingDevice.h"
 #include "dsp.h"
 
-#define OUTPUT_WARN
-#define INPUT_WARN
-//#define PLAY_RECORDING 1
-//#define RECORD_INPUT
-//#define RECORD_OUTPUT 1
+//#define OUTPUT_WARN
+//#define INPUT_WARN
 
 void soundoutputrunner(void* data);
 void soundinputrunner(void* data);
@@ -110,16 +107,10 @@ int Dsp::configure_alsa_audio(snd_pcm_t* device) {
 
   snd_pcm_hw_params_free(hw_params);
 
-  printf("BUFFER SIZE = %d\n", buffer_size);
-  printf("FRAMES = %d\n", frames);
-  printf("FRAGMENTS = %d\n", fragments);
+  //printf("BUFFER SIZE = %d\n", buffer_size);
+  //printf("FRAMES = %d\n", frames);
+  //printf("FRAGMENTS = %d\n", fragments);
   return 0;
-}
-
-static uint64_t currenttimemillis() {
-  struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000.0;
 }
 
 Dsp::Dsp(Format f)
@@ -330,14 +321,19 @@ void soundoutputrunner(void* data) {
   int restarting = 1;
   int outframes;
 
-#ifdef RECORD_OUTPUT
-  FILE* fp = fopen("/tmp/sndout", "w");
-#endif
+  FILE* fpo;
+
+  if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD) {
+    fpo = fopen("sndout", "w");
+  } else if (dsp->devInMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
+    fpo = fopen("sndout", "r");
+  }
 
   // This loop never blocks except on the sound card device itself
   // It continuously alternates flushing the contents of buffers 0 and 1
   // to the sound card, detecting if the producer was too slow to fill
   // a buffer it's just about to flush
+  int fill_buf = 0;
   while (dsp->outputend == 0) {
     if (restarting) {
       restarting = 0;
@@ -345,32 +341,35 @@ void soundoutputrunner(void* data) {
       snd_pcm_prepare(dsp->playback_handle);
     }
 
-    // Tell producer to start filling buffer 0
-    // as we are about to output buffer 1
+    // Tell producer to start filling buffer |fill_buf|
+    // as we are about to output buffer |1-fill_buf|
     pthread_mutex_lock(&dsp->outputlock);
 
-    if (dsp->dspOutReady[1] == 0) {
+    if (dsp->dspOutReady[1-fill_buf] == 0) {
 #ifdef OUTPUT_WARN
-      fprintf(stderr, "too slow producing to buf 1 at %d\n", dsp->dspOutBufPos);
+      fprintf(stderr, "too slow producing to buf %d at %d\n", 1-fill_buf, dsp->dspOutBufPos);
 #endif
       // The producer did not fill this buffer in time, clear the remaining
       // portion and reset buf index to 1 as though they did finish
       // Sound card will get blank audio or 'pops' when this happens
-      memset(&dsp->dspOutBuf[1][dsp->dspOutBufPos], 0,
+      memset(&dsp->dspOutBuf[1-fill_buf][dsp->dspOutBufPos], 0,
              dsp->dspOutBufSize - dsp->dspOutBufPos);
     } else {
       pthread_cond_signal(&dsp->outputcond);
     }
     dsp->dspOutBufPos = 0;
-    dsp->dspOutBufIndex = 0;
-    dsp->dspOutReady[1] = 0;
+    dsp->dspOutBufIndex = fill_buf;
+    dsp->dspOutReady[1-fill_buf] = 0;
     pthread_mutex_unlock(&dsp->outputlock);
 
-#ifdef RECORD_OUTPUT
-    fwrite(dsp->dspOutBuf[1], 1, dsp->dspOutBufSize, fp);
-#endif
+    if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD) {
+      fwrite(dsp->dspOutBuf[1-fill_buf], 1, dsp->dspOutBufSize, fpo);
+    } else if (dsp->devInMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
+      fread(dsp->dspOutBuf[1-fill_buf], 1, dsp->dspOutBufSize, fpo);
+    }
+
     while ((outframes = snd_pcm_writei(
-                dsp->playback_handle, dsp->dspOutBuf[1],
+                dsp->playback_handle, dsp->dspOutBuf[1-fill_buf],
                 dsp->dspOutBufSize / dsp->bytes_per_frame)) < 0) {
       if (outframes == -EAGAIN)
         continue;
@@ -378,54 +377,16 @@ void soundoutputrunner(void* data) {
       restarting = 1;
       snd_pcm_prepare(dsp->playback_handle);
     }
+    fill_buf = 1 - fill_buf;
 
-    if (restarting) {
-      restarting = 0;
-      snd_pcm_drop(dsp->playback_handle);
-      snd_pcm_prepare(dsp->playback_handle);
+    if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD) {
+      fflush(fpo);
     }
-
-    // Tell producer to start filling buffer 1
-    // as we are about to output buffer 0
-    pthread_mutex_lock(&dsp->outputlock);
-
-    if (dsp->dspOutReady[0] == 0) {
-#ifdef OUTPUT_WARN
-      fprintf(stderr, "too slow producing to buf 0 at %d\n", dsp->dspOutBufPos);
-#endif
-      // The producer did not fill this buffer in time, clear the remaining
-      // portion and reset buf index to 0 as though they did finish
-      // Sound card will get blank audio or 'pops' when this happens
-      memset(&dsp->dspOutBuf[0][dsp->dspOutBufPos], 0,
-             dsp->dspOutBufSize - dsp->dspOutBufPos);
-    } else {
-      pthread_cond_signal(&dsp->outputcond);
-    }
-    dsp->dspOutBufPos = 0;
-    dsp->dspOutBufIndex = 1;
-    dsp->dspOutReady[0] = 0;
-    pthread_mutex_unlock(&dsp->outputlock);
-
-#ifdef RECORD_OUTPUT
-    fwrite(dsp->dspOutBuf[0], 1, dsp->dspOutBufSize, fp);
-#endif
-    while ((outframes = snd_pcm_writei(
-                dsp->playback_handle, dsp->dspOutBuf[0],
-                dsp->dspOutBufSize / dsp->bytes_per_frame)) < 0) {
-      if (outframes == -EAGAIN)
-        continue;
-      fprintf(stderr, "Output buffer underrun\n");
-      restarting = 1;
-      snd_pcm_prepare(dsp->playback_handle);
-    }
-
-#ifdef RECORD_OUTPUT
-    fflush(fp);
-#endif
   }
-#ifdef RECORD_OUTPUT
-  fclose(fp);
-#endif
+  if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD ||
+      dsp->devInMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
+    fclose(fpo);
+  }
 
   pthread_exit(NULL);
 }
@@ -436,17 +397,18 @@ void soundinputrunner(void* data) {
   int restarting = 1;
   int inframes;
 
-#ifdef RECORD_INPUT
-  FILE* fp = fopen("/tmp/sndin", "w");
-#endif
-#ifdef PLAY_RECORDING
-  FILE* fp = fopen("/tmp/sndin", "r");
-#endif
+  FILE* fpi;
+  if (dsp->devInMode == SamplingDevice::DEV_IN_RECORD) {
+    fpi = fopen("sndin", "w");
+  } else if (dsp->devInMode == SamplingDevice::DEV_IN_PLAY_FROM_FILE) {
+    fpi = fopen("sndin", "r");
+  }
 
   // This loop never blocks except on the sound card device itself
   // It continuously alternates filling the contents of buffers 0 and 1
   // from the sound card, detecting if the consumer was too slow to process
   // a buffer it filled previously
+  int fill_buf = 0;
   while (dsp->inputend == 0) {
     if (restarting) {
       restarting = 0;
@@ -455,7 +417,7 @@ void soundinputrunner(void* data) {
     }
 
     while ((inframes =
-                snd_pcm_readi(dsp->capture_handle, dsp->dspInBuf[0],
+                snd_pcm_readi(dsp->capture_handle, dsp->dspInBuf[fill_buf],
                               dsp->dspInBufSize / dsp->bytes_per_frame)) < 0) {
       if (inframes == -EAGAIN)
         continue;
@@ -464,84 +426,42 @@ void soundinputrunner(void* data) {
       snd_pcm_prepare(dsp->capture_handle);
     }
 
-#ifdef PLAY_RECORDING
-    fread(dsp->dspInBuf[0], 1, dsp->dspInBufSize, fp);
-#endif
-#ifdef RECORD_INPUT
-    fwrite(dsp->dspInBuf[0], 1, dsp->dspInBufSize, fp);
-#endif
+    if (dsp->devInMode == SamplingDevice::DEV_IN_PLAY_FROM_FILE) {
+      fread(dsp->dspInBuf[fill_buf], 1, dsp->dspInBufSize, fpi);
+    } else if (dsp->devInMode == SamplingDevice::DEV_IN_RECORD) {
+      fwrite(dsp->dspInBuf[fill_buf], 1, dsp->dspInBufSize, fpi);
+    }
 
     // Tell consumer its okay to start reading from buffer 0 we just filled
     // as we area about to start filling buffer 1
     pthread_mutex_lock(&dsp->inputlock);
 
-    assert(dsp->dspInBufIndex == 1);
+    assert(dsp->dspInBufIndex == 1-fill_buf);
 
-    if (dsp->dspInReady[0] == 0) {
+    if (dsp->dspInReady[fill_buf] == 0) {
 #ifdef INPUT_WARN
-      fprintf(stderr, "too slow consuming from 1 at %d\n", dsp->dspInBufPos);
+      fprintf(stderr, "too slow consuming from %d at %d\n", 1-fill_buf, dsp->dspInBufPos);
 #endif
       // Consumer will have 'gaps' in its data when this happens
     } else {
       pthread_cond_signal(&dsp->inputcond);
     }
     dsp->dspInBufPos = 0;
-    dsp->dspInBufIndex = 0;
-    dsp->dspInReady[0] = 0;
+    dsp->dspInBufIndex = fill_buf;
+    dsp->dspInReady[fill_buf] = 0;
 
     pthread_mutex_unlock(&dsp->inputlock);
+    fill_buf = 1 - fill_buf;
 
-    if (restarting) {
-      restarting = 0;
-      snd_pcm_drop(dsp->capture_handle);
-      snd_pcm_prepare(dsp->capture_handle);
+    if (dsp->devInMode == SamplingDevice::DEV_IN_RECORD) {
+      fflush(fpi);
     }
-
-    while ((inframes =
-                snd_pcm_readi(dsp->capture_handle, dsp->dspInBuf[1],
-                              dsp->dspInBufSize / dsp->bytes_per_frame)) < 0) {
-      if (inframes == -EAGAIN)
-        continue;
-      fprintf(stderr, "Input buffer overrun\n");
-      restarting = 1;
-      snd_pcm_prepare(dsp->capture_handle);
-    }
-
-#ifdef PLAY_RECORDING
-    fread(dsp->dspInBuf[1], 1, dsp->dspInBufSize, fp);
-#endif
-#ifdef RECORD_INPUT
-    fwrite(dsp->dspInBuf[1], 1, dsp->dspInBufSize, fp);
-#endif
-
-    // Tell consumer its okay to start reading from buffer 1 we just filled
-    // as we are about to start filling buffer 0
-    pthread_mutex_lock(&dsp->inputlock);
-
-    assert(dsp->dspInBufIndex == 0);
-
-    if (dsp->dspInReady[1] == 0) {
-#ifdef INPUT_WARN
-      fprintf(stderr, "too slow consuming from 0 at %d\n", dsp->dspInBufPos);
-#endif
-      // Consumer will have 'gaps' in its data when this happens
-    } else {
-      pthread_cond_signal(&dsp->inputcond);
-    }
-    dsp->dspInBufPos = 0;
-    dsp->dspInBufIndex = 1;
-    dsp->dspInReady[1] = 0;
-
-    pthread_mutex_unlock(&dsp->inputlock);
-
-#ifdef RECORD_INPUT
-    fflush(fp);
-#endif
   }
 
-#ifdef RECORD_INPUT
-  fclose(fp);
-#endif
+  if (dsp->devInMode == SamplingDevice::DEV_IN_RECORD ||
+      dsp->devInMode == SamplingDevice::DEV_IN_PLAY_FROM_FILE) {
+    fclose(fpi);
+  }
   pthread_exit(NULL);
 }
 

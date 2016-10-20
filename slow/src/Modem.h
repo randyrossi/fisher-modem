@@ -175,7 +175,7 @@ class Modem {
   int plusses;
   bool escaped;
 
-  void open();
+  int open();
   void close();
   void start();
   void putChar(int ch);

@@ -226,12 +226,16 @@ int BluetoothDevice::dopen() {
       devInMode == DEV_IN_DEVICE || devInMode == DEV_IN_RECORD) {
     printf("open rfcomm\r\n");
     rfd = rfcomm_connect(&bdaddr, bluetoothChannel);
-
-    rfcommend = 0;
-    // Spawn a thread that will read from the rfcomm channel
-    pthread_attr_init(&rfcattr);
-    pthread_attr_setdetachstate(&rfcattr, PTHREAD_CREATE_JOINABLE);
-    pthread_create(&rfcthreadid, &rfcattr, (void* (*)(void*))btrfcreader, this);
+    if (rfd < 0) {
+      printf("can't open rfcomm\r\n");
+      return -1;
+    } else {
+      rfcommend = 0;
+      // Spawn a thread that will read from the rfcomm channel
+      pthread_attr_init(&rfcattr);
+      pthread_attr_setdetachstate(&rfcattr, PTHREAD_CREATE_JOINABLE);
+      pthread_create(&rfcthreadid, &rfcattr, (void* (*)(void*))btrfcreader, this);
+    }
   }
 
   hookState = 1;
@@ -252,7 +256,7 @@ int BluetoothDevice::dopen() {
   if (outBuf[0] == NULL || outBuf[0] == NULL || inBuf[0] == NULL ||
       inBuf[1] == NULL) {
     fprintf(stderr, "can't allocate bluetooth buffers\n");
-    return 7;
+    return -1;
   }
 
   pthread_mutex_init(&inputlock, NULL);
@@ -260,10 +264,13 @@ int BluetoothDevice::dopen() {
   pthread_cond_init(&inputcond, NULL);
   pthread_cond_init(&outputcond, NULL);
 
-  return 1;
+  return 0;
 }
 
 void BluetoothDevice::dclose() {
+  if (!isOpen()) {
+    return;
+  }
   // This will go onhook.
   rfcommend = 1;
 
@@ -583,25 +590,26 @@ void btscooutputrunner(void* data) {
   // It continuously alternates flushing the contents of buffers 0 and 1
   // to the sound card, detecting if the producer was too slow to fill
   // a buffer its just about to flush
+  int fill_buf = 0;
   while (blue->outputend == 0) {
-    // Tell producer to start filling buffer 0
-    // as we are about to output buffer 1
+    // Tell producer to start filling buffer |fill_buf|
+    // as we are about to output buffer |1-fill_buf|
     pthread_mutex_lock(&blue->outputlock);
-    if (blue->outReady[1] == 0) {
+    if (blue->outReady[1-fill_buf] == 0) {
 #ifdef OUTPUT_WARN
-      fprintf(stderr, "too slow producing to btbuf 1 at %d\n", blue->outBufPos);
+      fprintf(stderr, "too slow producing to btbuf %d at %d\n", 1-fill_buf, blue->outBufPos);
 #endif
       // The producer did not fill this buffer in time, clear the remaining
       // portion and reset buf index to 1 as though they did finish
       // Sound card will get blank audio or 'pops' when this happens
-      memset(&(blue->outBuf[1][blue->outBufPos]), 0,
+      memset(&(blue->outBuf[1-fill_buf][blue->outBufPos]), 0,
              blue->outBufSize - blue->outBufPos);
     } else {
       pthread_cond_signal(&blue->outputcond);
     }
     blue->outBufPos = 0;
-    blue->outBufIndex = 0;
-    blue->outReady[1] = 0;
+    blue->outBufIndex = fill_buf;
+    blue->outReady[1-fill_buf] = 0;
     pthread_mutex_unlock(&blue->outputlock);
 
     remaining = blue->outBufSize;
@@ -609,17 +617,17 @@ void btscooutputrunner(void* data) {
       pos = 0;
       if (blue->scoout_play_fd != 0) {
         // Clobber whatever was put in the outbuf with file contents
-        read(blue->scoout_play_fd, blue->outBuf[1], blue->outBufSize);
+        read(blue->scoout_play_fd, blue->outBuf[1-fill_buf], blue->outBufSize);
       }
       while (remaining > 0) {
-        int n = write(blue->scooutd, &(blue->outBuf[1][pos]),
+        int n = write(blue->scooutd, &(blue->outBuf[1-fill_buf][pos]),
                       MIN(blue->mtu, remaining));
         if (n <= 0) {
           blue->outputend = 1;
           break;
         }
         if (blue->scoout_rec_fd != 0) {
-          write(blue->scoout_rec_fd, &(blue->outBuf[1][pos]), n);
+          write(blue->scoout_rec_fd, &(blue->outBuf[1-fill_buf][pos]), n);
         }
         remaining -= n;
         pos += n;
@@ -650,71 +658,7 @@ void btscooutputrunner(void* data) {
       break;
     }
 
-    // Tell producer to start filling buffer 1
-    // as we are about to output buffer 0
-    pthread_mutex_lock(&blue->outputlock);
-    if (blue->outReady[0] == 0) {
-#ifdef OUTPUT_WARN
-      fprintf(stderr, "too slow producing to btbuf 0 at %d\n", blue->outBufPos);
-#endif
-      // The producer did not fill this buffer in time, clear the remaining
-      // portion and reset buf index to 0 as though they did finish
-      // Sound card will get blank audio or 'pops' when this happens
-      memset(&(blue->outBuf[0][blue->outBufPos]), 0,
-             blue->outBufSize - blue->outBufPos);
-    } else {
-      pthread_cond_signal(&blue->outputcond);
-    }
-    blue->outBufPos = 0;
-    blue->outBufIndex = 1;
-    blue->outReady[0] = 0;
-    pthread_mutex_unlock(&blue->outputlock);
-
-    remaining = blue->outBufSize;
-    if (blue->scooutd != 0) {
-      pos = 0;
-      if (blue->scoout_play_fd != 0) {
-        // Clobber whatever was put in the outbuf with file contents
-        read(blue->scoout_play_fd, blue->outBuf[0], blue->outBufSize);
-      }
-      while (remaining > 0) {
-        int n = write(blue->scooutd, &(blue->outBuf[0][pos]),
-                      MIN(blue->mtu, remaining));
-        if (n <= 0) {
-          blue->outputend = 1;
-          break;
-        }
-        if (blue->scoout_rec_fd != 0) {
-          write(blue->scoout_rec_fd, &(blue->outBuf[0][pos]), n);
-        }
-        remaining -= n;
-        pos += n;
-      }
-    }
-
-    if (blue->throttle) {
-      total += (float)blue->outBufSize;
-      elapsed = currenttimemillis() - start;
-      seconds = (float)(elapsed) / 1000.0f;
-      rate = total / seconds;
-      while (rate > targetRate) {
-        usleep(100);
-        elapsed = currenttimemillis() - start;
-        seconds = (float)(elapsed) / 1000.0f;
-        rate = total / seconds;
-      }
-      bufWriteCount++;
-      if (bufWriteCount > 10) {
-        // printf ("RATE=%f elapsed=%lld\n",rate,elapsed);
-        bufWriteCount = 0;
-        total = 0;
-        start = currenttimemillis();
-      }
-    }
-
-    if (blue->outputend == 1) {
-      break;
-    }
+    fill_buf = 1 - fill_buf;
   }
 
   // Make sure producer won't block or wakes up.
@@ -746,6 +690,7 @@ void btscoinputrunner(void* data) {
   tv.tv_sec = 0;
   tv.tv_usec = 200000;
 
+  int fill_buf = 0;
   while (blue->inputend == 0) {
     remaining = blue->inBufSize;
     if (blue->scoind != 0) {
@@ -759,20 +704,20 @@ void btscoinputrunner(void* data) {
           blue->inputend = 1;
           break;
         } else if (retval) {
-          int n = read(blue->scoind, &(blue->inBuf[0][pos]), remaining);
+          int n = read(blue->scoind, &(blue->inBuf[fill_buf][pos]), remaining);
           if (n <= 0) {
             blue->inputend = 1;
             break;
           }
           if (blue->scoin_rec_fd != 0) {
-            write(blue->scoin_rec_fd, &(blue->inBuf[0][pos]), n);
+            write(blue->scoin_rec_fd, &(blue->inBuf[fill_buf][pos]), n);
           }
           remaining -= n;
           pos += n;
         }
       }
     } else {
-      memset(&(blue->inBuf[0][0]), 0, remaining);
+      memset(&(blue->inBuf[fill_buf][0]), 0, remaining);
     }
 
     if (blue->inputend == 1) {
@@ -788,9 +733,9 @@ void btscoinputrunner(void* data) {
     // as we area about to start filling buffer 1
     pthread_mutex_lock(&blue->inputlock);
 
-    if (blue->inReady[0] == 0) {
+    if (blue->inReady[fill_buf] == 0) {
 #ifdef INPUT_WARN
-      fprintf(stderr, "too slow consuming from btbuf 1 at %d\n",
+      fprintf(stderr, "too slow consuming from btbuf %d at %d\n", 1-fill_buf,
               blue->inBufPos);
 #endif
       // Consumer will have 'gaps' in its data when this happens
@@ -798,64 +743,12 @@ void btscoinputrunner(void* data) {
       pthread_cond_signal(&blue->inputcond);
     }
     blue->inBufPos = 0;
-    blue->inBufIndex = 0;
-    blue->inReady[0] = 0;
+    blue->inBufIndex = fill_buf;
+    blue->inReady[fill_buf] = 0;
 
     pthread_mutex_unlock(&blue->inputlock);
 
-    remaining = blue->inBufSize;
-    if (blue->scoind != 0) {
-      pos = 0;
-      while (remaining > 0 && blue->inputend == 0) {
-        FD_ZERO(&rfds);
-        FD_SET(blue->scoind, &rfds);
-        retval = select(blue->scoind + 1, &rfds, NULL, NULL, &tv);
-        if (retval == -1) {
-          printf("inputreader select error\n");
-          blue->inputend = 1;
-          break;
-        } else if (retval) {
-          int n = read(blue->scoind, &(blue->inBuf[1][pos]), remaining);
-          if (n <= 0) {
-            blue->inputend = 1;
-            break;
-          }
-          if (blue->scoin_rec_fd != 0) {
-            write(blue->scoin_rec_fd, &(blue->inBuf[1][pos]), n);
-          }
-          remaining -= n;
-          pos += n;
-        }
-      }
-    } else {
-      memset(&(blue->inBuf[1][0]), 0, remaining);
-    }
-
-    if (blue->inputend == 1) {
-      break;
-    }
-
-    // Fake read delay
-    if (blue->devInMode == SamplingDevice::DEV_IN_PLAY_FROM_FILE) {
-      usleep(500 * 1000);
-    }
-    // Tell consumer its okay to start reading from buffer 1 we just filled
-    // as we are about to start filling buffer 0
-    pthread_mutex_lock(&blue->inputlock);
-
-    if (blue->inReady[1] == 0) {
-#ifdef INPUT_WARN
-      fprintf(stderr, "too slow consuming from btbuf 0 at %d\n",
-              blue->inBufPos);
-#endif
-      // Consumer will have 'gaps' in its data when this happens
-    } else {
-      pthread_cond_signal(&blue->inputcond);
-    }
-    blue->inBufPos = 0;
-    blue->inBufIndex = 1;
-    blue->inReady[1] = 0;
-    pthread_mutex_unlock(&blue->inputlock);
+    fill_buf = 1 - fill_buf;
   }
 
   // Make sure consumer won't block or wakes up.

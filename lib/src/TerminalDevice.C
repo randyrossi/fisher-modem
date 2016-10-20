@@ -61,6 +61,7 @@ void TerminalDevice::dopen()  // throws StdioInitException
     inputHdl = outputHdl = serialDev;
     if (inputHdl < 0) {
       fprintf(stderr, "can't open %s\n", deviceName);
+      // return ERROR
     }
     int rc;
 
