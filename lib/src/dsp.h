@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <alsa/asoundlib.h>
 
+#include "commonTypes.h"
+#include "SamplingDevice.h"
+
 #define FALSE 0
 #define TRUE 1
 
@@ -12,23 +15,22 @@ class Dsp : public SamplingDevice {
  public:
   snd_pcm_t* playback_handle;
   snd_pcm_t* capture_handle;
-  int buffer_size;
-  int bits;
-  int bytes_per_frame;
-  int num_channels;
+  unsigned int buffer_size;
+  unsigned int bits;
+  unsigned int bytes_per_frame;
+  unsigned int num_channels;
   unsigned int fragments;
 
-  int dspOutBufSize;
-  int dspInBufSize;
-
+  unsigned int dspOutBufSize;
   unsigned char** dspOutBuf;
-  int dspOutBufPos;
-  int dspOutBufIndex;
+  unsigned int dspOutBufPos;
+  unsigned int dspOutBufIndex;
   int dspOutReady[2];
 
+  unsigned int dspInBufSize;
   unsigned char** dspInBuf;
-  int dspInBufPos;
-  int dspInBufIndex;
+  unsigned int dspInBufPos;
+  unsigned int dspInBufIndex;
   int dspInReady[2];
 
   pthread_mutex_t inputlock;

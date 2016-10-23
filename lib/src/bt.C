@@ -1,17 +1,17 @@
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <malloc.h>
+#include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <malloc.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <sys/types.h>
-#include <math.h>
-#include <errno.h>
-#include <signal.h>
-#include <sys/time.h>
-#include <time.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <time.h>
+#include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -21,14 +21,11 @@
 #include <bluetooth/sdp.h>
 #include <bluetooth/sdp_lib.h>
 
-#include "commonTypes.h"
-#include "SamplingDevice.h"
 #include "bt.h"
 
-#define OUTPUT_WARN 1
-#define INPUT_WARN 1
+//#define OUTPUT_WARN 1
+//#define INPUT_WARN 1
 
-// This code is a mess.
 // There are a number of problems with this implementation.  State
 // variables like hookState, rfcommend, and rfd are not protected
 // from concurrent access by multiple threads.  Race conditions might cause
@@ -36,29 +33,24 @@
 // executed once.  (Especially on shutdown or detection of dropped connections)
 // However, I don't think anything catastrophic will happen.
 //
-// Also, the write thread must be throttled so it doesn't
-// overrun the bluez buffer.  I'm not sure why bluez write op doesn't block
-// like every other socket type.  Read is of course paced properly since
-// audio data can't possibly be produced faster than real time.  But the write
-// side is a different story.  Might want to try select on the write to see
-// if it will tell us that sometimes we have to wait to write?  Two threads
-// reading/writing on the same socket seems like a bad idea too.  Perhaps
-// the read/write threads can be merged into one that alternate.  However,
-// that might block the byte producer thread calling into us more often.
+// The bluetooth write operations never block so we depend on the read operations
+// blocking to time the writes properly.  I think this is how SCO works under
+// the covers anyway (for every SCO packet read, one is written).  Unlike Dsp
+// (sound card) implementation, this implementation uses a single i/o thread
+// for the device read/writes rather than two (one dedicated to each).
 
 void btrfcreader(void* data);
-void btscooutputrunner(void* data);
-void btscoinputrunner(void* data);
+void btscoiorunner(void* data);
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define ABS(a) (((a) < 0) ? -(a) : (a))
 
-static uint64_t currenttimemillis() {
-  struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000.0;
-}
+//static uint64_t currenttimemillis() {
+//  struct timespec ts;
+//  clock_gettime(CLOCK_MONOTONIC, &ts);
+//  return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000.0;
+//}
 
 static int sco_connect(char* svr, int* mtu) {
   bdaddr_t ANYADDR;
@@ -90,6 +82,13 @@ static int sco_connect(char* svr, int* mtu) {
   if (bind(sk, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
     printf("Can't bind socket: %s (%d)", strerror(errno), errno);
     goto error;
+  }
+
+  struct bt_voice bt_options;
+  memset(&bt_options, 0, sizeof(bt_options));
+  bt_options.setting = BT_VOICE_CVSD_16BIT;
+  if (setsockopt(sk, SOL_BLUETOOTH, BT_VOICE, &bt_options, sizeof(bt_options)) < 0) {
+      printf("Can't set socket options: %s (%d)", strerror(errno), errno);
   }
 
   /* Connect to remote device */
@@ -176,33 +175,31 @@ static int rfcomm_connect(bdaddr_t* dst, uint8_t channel) {
 
 BluetoothDevice::BluetoothDevice(char* addr, int channel, bool t)
     : SamplingDevice(SIGNED_16BIT_LE_PCM),
-      incounter(0),
-      outcounter(0),
-      throttle(t),
-      bluetoothAddress(addr),
-      bluetoothChannel(channel),
-      inBuf(NULL),
-      inBufIndex(0),
-      inBufPos(0),
-      inBufSize(0),
-      inputend(0),
-      inputthreadid(0),
-      outBuf(NULL),
-      outBufIndex(0),
-      outBufPos(0),
-      outBufSize(0),
-      outputend(0),
-      outputthreadid(0),
+      rfd(0),
+      scoind(0),
+      scooutd(0),
+      mtu(0),
+      scoin_rec_fd(0),
       scoout_rec_fd(0),
       scoout_play_fd(0),
-      scooutd(0),
-      scoin_rec_fd(0),
-      scoind(0),
-      rfcthreadid(0),
-      mtu(0),
-      rfcommend(0),
       hookState(1),  // onhook
-      rfd(0) {}
+      outBufSize(0),
+      inBufSize(0),
+      outBuf(NULL),
+      outBufPos(0),
+      outBufIndex(0),
+      inBuf(NULL),
+      inBufPos(0),
+      inBufIndex(0),
+      rfcthreadid(0),
+      iothreadid(0),
+      rfcommend(0),
+      ioend(0),
+      incounter(0),
+      outcounter(0),
+      bluetoothAddress(addr),
+      bluetoothChannel(channel) {
+}
 
 BluetoothDevice::~BluetoothDevice() {}
 
@@ -240,8 +237,15 @@ int BluetoothDevice::dopen() {
 
   hookState = 1;
 
-  outBufSize = 1000;
-  inBufSize = 1000;
+  // These buf sizes should probably be a multiple of the mtu. Not 100% sure
+  // but docs say you should always read full packets and it makes sense to always
+  // write a full packet too.  So this make sure we always finish reading/writing on
+  // a buffer boundary (provided all reads/writes successfully read/wrote full packets
+  // with each fill/drain loop.  They can't be too small or else the overhead of
+  // context switching doesn't give the consumer/producer enough time to
+  // process/produce data.
+  outBufSize = 4800;
+  inBufSize = 4800;
 
   outBuf = (unsigned char**)malloc(sizeof(unsigned char*) * 2);
   outBuf[0] = (unsigned char*)malloc(outBufSize);
@@ -298,7 +302,7 @@ int BluetoothDevice::isOpen() {
 
 // Must be called while holding output lock
 void BluetoothDevice::putByte(unsigned char b) {
-  if (hookState == 0 && outputend == 0) {
+  if (hookState == 0 && ioend == 0) {
     // sco is active, write to outbuf
     outBuf[outBufIndex][outBufPos] = b;
     outBufPos++;
@@ -321,7 +325,7 @@ void BluetoothDevice::putByte(unsigned char b) {
     if (outcounter >= outBufSize) {
       // Fake the delay that would come if we were actually writing data to
       // something.
-      float delay_us = (float)(outBufSize) / 8000.00 * 1000000;
+      float delay_us = (float)(outBufSize/2) / 8000.00 * 1000000;
       uint32_t delay = (uint32_t)delay_us;
       usleep(delay);
       outcounter = 0;
@@ -333,7 +337,7 @@ void BluetoothDevice::putByte(unsigned char b) {
 unsigned char BluetoothDevice::getByte() {
   unsigned char returnByte = 0;
 
-  if (hookState == 0 && inputend == 0) {
+  if (hookState == 0 && ioend == 0) {
     // sco is active, read from inbuf
     returnByte = inBuf[inBufIndex][inBufPos];
     inBufPos++;
@@ -357,7 +361,7 @@ unsigned char BluetoothDevice::getByte() {
     if (incounter >= inBufSize) {
       // Fake the delay that would come if we were actually writing data to
       // something.
-      float delay_us = (float)(inBufSize) / 8000.00 * 1000000;
+      float delay_us = (float)(inBufSize/2) / 8000.00 * 1000000;
       uint32_t delay = (uint32_t)delay_us;
       usleep(delay);
       incounter = 0;
@@ -371,7 +375,7 @@ unsigned char BluetoothDevice::getByte() {
 void BluetoothDevice::flush() {
   pthread_mutex_lock(&outputlock);
   if (outBufPos != 0) {
-    int bufIndex = outBufIndex;
+    unsigned int bufIndex = outBufIndex;
     // Put 0 until we cross a buffer boundary
     while (bufIndex == outBufIndex) {
       putByte(0);
@@ -382,7 +386,7 @@ void BluetoothDevice::flush() {
 
 void BluetoothDevice::discardInput() {
   pthread_mutex_lock(&inputlock);
-  if (hookState == 0 && inputend == 0) {
+  if (hookState == 0 && ioend == 0) {
     // We've reached the end of the buffer, wait until the input thread
     // tells us the next one is ready for processing
     inReady[1 - inBufIndex] = 1;
@@ -445,23 +449,17 @@ void BluetoothDevice::offHook() {
     outBufIndex = 0;  // producing to bank 0
     outReady[0] = 0;
     outReady[1] = 1;  // bank 1 production done
-    outputend = 0;
-    // Spawn a thread that will continuously write to sco
-    pthread_attr_init(&outputattr);
-    pthread_attr_setdetachstate(&outputattr, PTHREAD_CREATE_JOINABLE);
-    pthread_create(&outputthreadid, &outputattr,
-                   (void* (*)(void*))btscooutputrunner, this);
-
     inBufPos = 0;
     inBufIndex = 1;  // consuming from bank 1
     inReady[0] = 0;  // consumer not ready to read from here yet
     inReady[1] = 0;
-    inputend = 0;
-    // Spawn a thread that will continuously read from sco
-    pthread_attr_init(&inputattr);
-    pthread_attr_setdetachstate(&inputattr, PTHREAD_CREATE_JOINABLE);
-    pthread_create(&inputthreadid, &inputattr,
-                   (void* (*)(void*))btscoinputrunner, this);
+    ioend = 0;
+
+    // Spawn a thread that will continuously read&write from/to sco
+    pthread_attr_init(&ioattr);
+    pthread_attr_setdetachstate(&ioattr, PTHREAD_CREATE_JOINABLE);
+    pthread_create(&iothreadid, &ioattr,
+                   (void* (*)(void*))btscoiorunner, this);
 
     pthread_mutex_unlock(&inputlock);
     pthread_mutex_unlock(&outputlock);
@@ -494,21 +492,13 @@ void BluetoothDevice::onHook() {
         // TODO - WAIT for OK instead of delay
       }
 
-      // Tell the input/output threads to die
-      pthread_mutex_lock(&outputlock);
-      outputend = 1;
-      pthread_mutex_unlock(&outputlock);
+      // Tell the input/output thread to die
+      ioend = 1;
 
-      pthread_mutex_lock(&inputlock);
-      inputend = 1;
-      pthread_mutex_unlock(&inputlock);
+      // Now wait for the thread to exit
+      pthread_join(iothreadid, NULL);
 
-      // Now wait for those threads to exit
-      pthread_join(inputthreadid, NULL);
-      pthread_join(outputthreadid, NULL);
-
-      pthread_attr_destroy(&outputattr);
-      pthread_attr_destroy(&inputattr);
+      pthread_attr_destroy(&ioattr);
 
       close(scoind);
       if (scoind != scooutd) {
@@ -555,7 +545,6 @@ void BluetoothDevice::outsample(float x) {
   pthread_mutex_lock(&outputlock);
 
   if (format == SIGNED_16BIT_LE_PCM) {
-    // This works for sco
     float y = x * 16384.0f;
     signed short q = (short)y;
 
@@ -570,28 +559,18 @@ void BluetoothDevice::outsample(float x) {
 
 // When sco is connected, responsible for consuming from the outbuf and
 // writing the data to the sco channel
-void btscooutputrunner(void* data) {
+void btscoiorunner(void* data) {
   BluetoothDevice* blue = (BluetoothDevice*)data;
 
   int pos, remaining;
-
-  // For throttling
-  uint64_t start;
-  uint64_t elapsed;
-  float total = 0;
-  float seconds;
-  float targetRate = (float)8000 * 2.0f;  // *2 due to 16 bit output
-  float rate;
-  int bufWriteCount = 0;
-
-  start = currenttimemillis();
 
   // This loop never blocks except on the sound card device itself
   // It continuously alternates flushing the contents of buffers 0 and 1
   // to the sound card, detecting if the producer was too slow to fill
   // a buffer its just about to flush
   int fill_buf = 0;
-  while (blue->outputend == 0) {
+  while (blue->ioend == 0) {
+
     // Tell producer to start filling buffer |fill_buf|
     // as we are about to output buffer |1-fill_buf|
     pthread_mutex_lock(&blue->outputlock);
@@ -612,6 +591,7 @@ void btscooutputrunner(void* data) {
     blue->outReady[1-fill_buf] = 0;
     pthread_mutex_unlock(&blue->outputlock);
 
+    // WRITE
     remaining = blue->outBufSize;
     if (blue->scooutd != 0) {
       pos = 0;
@@ -620,113 +600,65 @@ void btscooutputrunner(void* data) {
         read(blue->scoout_play_fd, blue->outBuf[1-fill_buf], blue->outBufSize);
       }
       while (remaining > 0) {
-        int n = write(blue->scooutd, &(blue->outBuf[1-fill_buf][pos]),
-                      MIN(blue->mtu, remaining));
+        int n = send(blue->scooutd, &(blue->outBuf[1-fill_buf][pos]),
+                    MIN(blue->mtu, remaining), 0);
         if (n <= 0) {
-          blue->outputend = 1;
+          blue->ioend = 1;
           break;
         }
         if (blue->scoout_rec_fd != 0) {
-          write(blue->scoout_rec_fd, &(blue->outBuf[1-fill_buf][pos]), n);
+          int remain2 = n;
+          int pos2 = pos;
+          while (remain2 > 0) {
+            int n2 = write(blue->scoout_rec_fd, &(blue->outBuf[1-fill_buf][pos2]), remain2);
+            remain2 -= n2;
+            pos2 += n2;
+          }
         }
         remaining -= n;
         pos += n;
       }
     }
 
-    if (blue->throttle) {
-      total += (float)blue->outBufSize;
-      elapsed = currenttimemillis() - start;
-      seconds = (float)(elapsed) / 1000.0f;
-      rate = total / seconds;
-      while (rate > targetRate) {
-        usleep(100);
-        elapsed = currenttimemillis() - start;
-        seconds = (float)(elapsed) / 1000.0f;
-        rate = total / seconds;
-      }
-      bufWriteCount++;
-      if (bufWriteCount > 10) {
-        // printf ("RATE=%f elapsed=%lld\n",rate,elapsed);
-        bufWriteCount = 0;
-        total = 0;
-        start = currenttimemillis();
-      }
-    }
-
-    if (blue->outputend == 1) {
+    if (blue->ioend == 1) {
       break;
     }
 
-    fill_buf = 1 - fill_buf;
-  }
-
-  // Make sure producer won't block or wakes up.
-  pthread_mutex_lock(&blue->outputlock);
-  blue->outputend = 1;
-  if (blue->outBufPos >= blue->outBufSize) {
-    pthread_cond_signal(&blue->outputcond);
-    blue->outBufPos = 0;
-  }
-  pthread_mutex_unlock(&blue->outputlock);
-
-  pthread_mutex_lock(&blue->inputlock);
-  blue->inputend = 1;
-  pthread_mutex_unlock(&blue->inputlock);
-
-  printf("sco output is DEAD\n");
-  pthread_exit(NULL);
-}
-
-// When sco is connected, responsible for reading from the sco channel
-// producing data into inbuf
-void btscoinputrunner(void* data) {
-  BluetoothDevice* blue = (BluetoothDevice*)data;
-  int pos, remaining;
-  fd_set rfds;
-  struct timeval tv;
-  int retval;
-
-  tv.tv_sec = 0;
-  tv.tv_usec = 200000;
-
-  int fill_buf = 0;
-  while (blue->inputend == 0) {
+    // READ
     remaining = blue->inBufSize;
     if (blue->scoind != 0) {
       pos = 0;
-      while (remaining > 0 && blue->inputend == 0) {
-        FD_ZERO(&rfds);
-        FD_SET(blue->scoind, &rfds);
-        retval = select(blue->scoind + 1, &rfds, NULL, NULL, &tv);
-        if (retval == -1) {
-          printf("inputreader select error\n");
-          blue->inputend = 1;
+      while (remaining > 0 && blue->ioend == 0) {
+        int n = recv(blue->scoind, &(blue->inBuf[fill_buf][pos]), remaining, 0);
+        if (n <= 0) {
+          blue->ioend = 1;
           break;
-        } else if (retval) {
-          int n = read(blue->scoind, &(blue->inBuf[fill_buf][pos]), remaining);
-          if (n <= 0) {
-            blue->inputend = 1;
-            break;
-          }
-          if (blue->scoin_rec_fd != 0) {
-            write(blue->scoin_rec_fd, &(blue->inBuf[fill_buf][pos]), n);
-          }
-          remaining -= n;
-          pos += n;
         }
+        if (blue->scoin_rec_fd != 0) {
+          int remain2 = n;
+          int pos2 = pos;
+          while (remain2 > 0) {
+            int n2 = write(blue->scoin_rec_fd, &(blue->inBuf[fill_buf][pos2]), remain2);
+            remain2 -= n2;
+            pos2 += n2;
+          }
+        }
+        remaining -= n;
+        pos += n;
       }
     } else {
       memset(&(blue->inBuf[fill_buf][0]), 0, remaining);
     }
 
-    if (blue->inputend == 1) {
+    if (blue->ioend == 1) {
       break;
     }
 
-    // Fake read delay
+    // Fake read delay for file input
     if (blue->devInMode == SamplingDevice::DEV_IN_PLAY_FROM_FILE) {
-      usleep(500 * 1000);
+      float delay_us = (float)(blue->inBufSize/2) / 8000.00 * 1000000;
+      uint32_t delay = (uint32_t)delay_us;
+      usleep(delay);
     }
 
     // Tell consumer its okay to start reading from buffer 0 we just filled
@@ -751,25 +683,23 @@ void btscoinputrunner(void* data) {
     fill_buf = 1 - fill_buf;
   }
 
-  // Make sure consumer won't block or wakes up.
+  // Make sure producer won't block or wakes up if is already waiting.
+  pthread_mutex_lock(&blue->outputlock);
+  if (blue->outBufPos >= blue->outBufSize) {
+    pthread_cond_signal(&blue->outputcond);
+    blue->outBufPos = 0;
+  }
+  pthread_mutex_unlock(&blue->outputlock);
+
+  // Make sure consumer won't block or wakes up if is already waiting.
   pthread_mutex_lock(&blue->inputlock);
-  blue->inputend = 1;
   if (blue->inBufPos >= blue->inBufSize) {
     pthread_cond_signal(&blue->inputcond);
     blue->inBufPos = 0;
   }
   pthread_mutex_unlock(&blue->inputlock);
 
-  pthread_mutex_lock(&blue->outputlock);
-  blue->outputend = 1;
-  pthread_mutex_unlock(&blue->outputlock);
-
-  printf("sco input is DEAD\r\n");
-
-  // When input dies, go on hook. No need to do this in output
-  // runner since if it dies we will get here anyway.
-  blue->onHook();
-
+  printf("sco io is DEAD\n");
   pthread_exit(NULL);
 }
 

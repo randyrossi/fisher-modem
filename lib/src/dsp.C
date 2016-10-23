@@ -1,21 +1,19 @@
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <malloc.h>
+#include <math.h>
+#include <signal.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <malloc.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
-#include <math.h>
-#include <errno.h>
-#include <signal.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <time.h>
-#include <string.h>
+#include <unistd.h>
 
-#include "commonTypes.h"
-#include "SamplingDevice.h"
 #include "dsp.h"
 
 //#define OUTPUT_WARN
@@ -88,7 +86,7 @@ int Dsp::configure_alsa_audio(snd_pcm_t* device) {
   frames = buffer_size / bytes_per_frame * fragments;
   if ((err = snd_pcm_hw_params_set_buffer_size_near(device, hw_params,
                                                     &frames)) < 0) {
-    fprintf(stderr, "Error setting buffer_size %d frames: %s\n", frames,
+    fprintf(stderr, "Error setting buffer_size %d frames: %s\n", (int)frames,
             snd_strerror(err));
     return -1;
   }
@@ -96,7 +94,7 @@ int Dsp::configure_alsa_audio(snd_pcm_t* device) {
   if (buffer_size != frames * bytes_per_frame / fragments) {
     fprintf(stderr,
             "Could not set requested buffer size, asked for %d got %d\n",
-            buffer_size, frames * bytes_per_frame / fragments);
+            buffer_size, (int)frames * bytes_per_frame / fragments);
     buffer_size = frames * bytes_per_frame / fragments;
   }
 
@@ -112,23 +110,23 @@ int Dsp::configure_alsa_audio(snd_pcm_t* device) {
 
 Dsp::Dsp(Format f)
     : SamplingDevice(f),
-      num_channels(1),
-      fragments(2),
       playback_handle(NULL),
       capture_handle(NULL),
       buffer_size(1024),
-      outputthreadid(NULL),
-      inputthreadid(NULL),
-      dspInBufSize(0),
+      num_channels(1),
+      fragments(2),
       dspOutBufSize(0),
-      inputend(0),
-      outputend(0),
-      dspInBufPos(0),
-      dspOutBufPos(0),
-      dspInBuf(NULL),
       dspOutBuf(NULL),
+      dspOutBufPos(0),
+      dspOutBufIndex(0),
+      dspInBufSize(0),
+      dspInBuf(NULL),
+      dspInBufPos(0),
       dspInBufIndex(1),
-      dspOutBufIndex(0) {
+      inputthreadid(0),
+      outputthreadid(0),
+      inputend(0),
+      outputend(0) {
   if (format == SIGNED_8BIT_PCM) {
     bits = 8;
   } else if (format == SIGNED_16BIT_LE_PCM) {
@@ -284,7 +282,7 @@ unsigned char Dsp::getByte() {
 void Dsp::flush() {
   pthread_mutex_lock(&outputlock);
   if (dspOutBufPos != 0) {
-    int bufIndex = dspOutBufIndex;
+    unsigned int bufIndex = dspOutBufIndex;
     // Put 0 until we cross a buffer boundary
     while (bufIndex == dspOutBufIndex) {
       putByte(0);
@@ -406,7 +404,7 @@ void soundinputrunner(void* data) {
   // It continuously alternates filling the contents of buffers 0 and 1
   // from the sound card, detecting if the consumer was too slow to process
   // a buffer it filled previously
-  int fill_buf = 0;
+  unsigned int fill_buf = 0;
   while (dsp->inputend == 0) {
     if (restarting) {
       restarting = 0;

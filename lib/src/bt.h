@@ -3,6 +3,9 @@
 
 #include <pthread.h>
 
+#include "commonTypes.h"
+#include "SamplingDevice.h"
+
 #define FALSE 0
 #define TRUE 1
 
@@ -20,27 +23,24 @@ class BluetoothDevice : public SamplingDevice {
 
   int hookState;  // 0 off the hook, 1 on the hook
 
-  int outBufSize;
-  int inBufSize;
+  unsigned int outBufSize;
+  unsigned int inBufSize;
 
   unsigned char** outBuf;
-  int outBufPos;
-  int outBufIndex;
+  unsigned int outBufPos;
+  unsigned int outBufIndex;
   int outReady[2];
 
   unsigned char** inBuf;
-  int inBufPos;
-  int inBufIndex;
+  unsigned int inBufPos;
+  unsigned int inBufIndex;
   int inReady[2];
 
   pthread_attr_t rfcattr;
   pthread_t rfcthreadid;
 
-  pthread_attr_t inputattr;
-  pthread_t inputthreadid;
-
-  pthread_attr_t outputattr;
-  pthread_t outputthreadid;
+  pthread_attr_t ioattr;
+  pthread_t iothreadid;
 
   pthread_mutex_t inputlock;
   pthread_mutex_t outputlock;
@@ -49,12 +49,10 @@ class BluetoothDevice : public SamplingDevice {
   pthread_cond_t outputcond;
 
   int rfcommend;
-  int inputend;
-  int outputend;
+  int ioend;
 
-  bool throttle;
-  int incounter;   // for throttling
-  int outcounter;  // for throttling
+  unsigned int incounter;
+  unsigned int outcounter;
 
   char* bluetoothAddress;
   int bluetoothChannel;

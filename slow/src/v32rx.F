@@ -18,7 +18,7 @@
 
 static fspec *lpf_fs = mkfilter("-Bu -Lp -o 4 -a 0.125");   /* low-pass at 1200 Hz */
 
-static char *rate_strs[] = { "R1", "R2", "R3", "E3" }; /* indexed by mstate */
+//static char *rate_strs[] = { "R1", "R2", "R3", "E3" }; /* indexed by mstate */
 
 static void rx2_loop(void *data) {
 	Modem* modem = (Modem*) data;

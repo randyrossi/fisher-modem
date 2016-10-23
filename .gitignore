@@ -17,5 +17,10 @@ slow/src/v32rx.C
 slow/src/v32tx.h
 slow/src/v34rx.C
 slow/src/v34tx.h
+slow/src/fskrx.T
+slow/src/progress.T
+slow/src/v29rx.T
+slow/src/v32rx.T
+slow/src/v34rx.T
 test/testBitBuffer
 test/testThreadUtil

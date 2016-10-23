@@ -1,20 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "../threadutil/src/threadutil.h"
 
 void thread_body(void* data) {
   void* d = malloc(1024);
   fprintf(stdout, "thread is running\n");
-  char cmd[256];
   int t = rand() % 5 + 1;
-  sprintf(cmd, "sleep %d", t);
-  printf("%s\n", cmd);
-  system(cmd);
+  usleep(t * 1000000);
   fprintf(stdout, "thread is exiting\n");
   free(d);
 }
 
-main() {
+int main(int argc, char* argv[]) {
   int num = 100;
   fprintf(stdout, "main thread running\n");
   thread_t threads[num];
