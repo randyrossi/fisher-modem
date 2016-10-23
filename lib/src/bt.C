@@ -420,21 +420,21 @@ void BluetoothDevice::offHook() {
     }
 
     if (devInMode == DEV_IN_PLAY_FROM_FILE) {
-      scoind = open("sco_in", O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+      scoind = open("in_play", O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     }
 
     if (devInMode == DEV_IN_RECORD) {
-      scoin_rec_fd = open("sco_in_rec", O_WRONLY | O_CREAT,
+      scoin_rec_fd = open("in_rec", O_WRONLY | O_CREAT,
                           S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     }
 
     if (devOutMode == DEV_OUT_PLAY_FROM_FILE) {
       scoout_play_fd =
-          open("sco_out", O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+          open("out_play", O_RDONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     }
 
     if (devOutMode == DEV_OUT_RECORD) {
-      scoout_rec_fd = open("sco_out_rec", O_WRONLY | O_CREAT,
+      scoout_rec_fd = open("out_rec", O_WRONLY | O_CREAT,
                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     }
 

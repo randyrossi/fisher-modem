@@ -322,9 +322,9 @@ void soundoutputrunner(void* data) {
   FILE* fpo;
 
   if (dsp->devOutMode == SamplingDevice::DEV_OUT_RECORD) {
-    fpo = fopen("sndout", "w");
+    fpo = fopen("out_rec", "w");
   } else if (dsp->devOutMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
-    fpo = fopen("sndout", "r");
+    fpo = fopen("out_play", "r");
   }
 
   // This loop never blocks except on the sound card device itself
@@ -397,9 +397,9 @@ void soundinputrunner(void* data) {
 
   FILE* fpi;
   if (dsp->devInMode == SamplingDevice::DEV_IN_RECORD) {
-    fpi = fopen("sndin", "w");
+    fpi = fopen("in_rec", "w");
   } else if (dsp->devInMode == SamplingDevice::DEV_IN_PLAY_FROM_FILE) {
-    fpi = fopen("sndin", "r");
+    fpi = fopen("in_play", "r");
   }
 
   // This loop never blocks except on the sound card device itself

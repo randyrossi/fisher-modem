@@ -91,29 +91,29 @@ int MemPipe::dopen() {
 
   if (devOutMode == DEV_OUT_RECORD) {
     if (endPoint == CommonTypes::ENDPOINT_1) {
-      fpo = fopen("sndout_o", "w");
+      fpo = fopen("out_rec_1", "w");
     } else {
-      fpo = fopen("sndout_a", "w");
+      fpo = fopen("out_rec_2", "w");
     }
   } else if (devOutMode == DEV_OUT_PLAY_FROM_FILE) {
     if (endPoint == CommonTypes::ENDPOINT_1) {
-      fpo = fopen("sndout_o", "r");
+      fpo = fopen("out_play_1", "r");
     } else {
-      fpo = fopen("sndout_a", "r");
+      fpo = fopen("out_play_2", "r");
     }
   }
 
   if (devInMode == DEV_IN_RECORD) {
     if (endPoint == CommonTypes::ENDPOINT_1) {
-      fpi = fopen("sndin_o", "w");
+      fpi = fopen("in_rec_1", "w");
     } else {
-      fpi = fopen("sndin_a", "w");
+      fpi = fopen("in_rec_2", "w");
     }
   } else if (devInMode == DEV_IN_PLAY_FROM_FILE) {
     if (endPoint == CommonTypes::ENDPOINT_1) {
-      fpi = fopen("sndin_o", "r");
+      fpi = fopen("in_play_1", "r");
     } else {
-      fpi = fopen("sndin_a", "r");
+      fpi = fopen("in_play_2", "r");
     }
   }
 

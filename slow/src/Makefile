@@ -26,14 +26,12 @@ progress.T: progress.F
 
 progress.C: progress.T
 	../../bin/fifi $*.T $*.C
-	rm $*.T
 
 fskrx.T: fskrx.F
 	cat fskrx.F | sed "s/%SAMPLERATE%/${SAMPLERATE}/g" > fskrx.T
 
 fskrx.C: fskrx.T
 	../../bin/fifi $*.T $*.C
-	rm $*.T
 
 v29tx.C: v29tx.h
 
@@ -45,7 +43,6 @@ v29rx.T: v29rx.F
 
 v29rx.C: v29rx.T
 	../../bin/fifi $*.T $*.C
-	rm $*.T
 
 v32tx.C: v32tx.h
 
@@ -62,14 +59,12 @@ v32rx.T: v32rx.F
 
 v32rx.C: v32rx.T
 	../../bin/fifi $*.T $*.C
-	rm $*.T
 
 v34rx.T: v34rx.F
 	cat v34rx.F | sed "s/%SAMPLERATE%/${SAMPLERATE}/g" > v34rx.T
 
 v34rx.C: v34rx.T
 	../../bin/fifi $*.T $*.C
-	rm $*.T
 
 clean:
 	rm -f *.o progress.C fskrx.C v29tx.h v32tx.h v34tx.h v32rx.C v34rx.C v29rx.C modem modem.exe *.T *.stackdump
