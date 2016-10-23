@@ -188,9 +188,9 @@ static void usage() {
   fprintf(stderr,
           "Usage: modem [options]\n");
   fprintf(stderr, " -term <tty_device> (create tty device instead of console)\n");
-  fprintf(stderr, " -dev <output_device> (default soundcard)\n");
+  fprintf(stderr, " -dev <output_device> (default dsp)\n");
   fprintf(stderr, "   where output_device is one of:\n");
-  fprintf(stderr, "     soundcard\n");
+  fprintf(stderr, "     dsp (soundcard)\n");
   fprintf(stderr, "     bluetooth\n");
   fprintf(stderr, "     mempipe1 : enpoint 1 of shared mem pipe\n");
   fprintf(stderr, "     mempipe2 : enpoint 2 of shared mem pipe\n");

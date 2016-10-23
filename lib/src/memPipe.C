@@ -190,6 +190,8 @@ unsigned char MemPipe::getByte() {
   return b;
 }
 
+// TODO: This will cause silence which is not what the caller wants.
+// Fix this.
 void MemPipe::flush() {
   while (dspOutBufPos < dspOutBufSize - 1) {
     putByte(0);

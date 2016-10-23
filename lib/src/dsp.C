@@ -107,9 +107,6 @@ int Dsp::configure_alsa_audio(snd_pcm_t* device) {
 
   snd_pcm_hw_params_free(hw_params);
 
-  //printf("BUFFER SIZE = %d\n", buffer_size);
-  //printf("FRAMES = %d\n", frames);
-  //printf("FRAGMENTS = %d\n", fragments);
   return 0;
 }
 
@@ -145,6 +142,7 @@ Dsp::~Dsp() {}
 int Dsp::dopen() {
   int err;
 
+  // TODO: Make these configurable.  These are for HDMI out and rec in.
   char* snd_device_in = "plughw:0,0";
   char* snd_device_out = "plughw:1,3";
 
@@ -323,9 +321,9 @@ void soundoutputrunner(void* data) {
 
   FILE* fpo;
 
-  if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD) {
+  if (dsp->devOutMode == SamplingDevice::DEV_OUT_RECORD) {
     fpo = fopen("sndout", "w");
-  } else if (dsp->devInMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
+  } else if (dsp->devOutMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
     fpo = fopen("sndout", "r");
   }
 
@@ -362,9 +360,9 @@ void soundoutputrunner(void* data) {
     dsp->dspOutReady[1-fill_buf] = 0;
     pthread_mutex_unlock(&dsp->outputlock);
 
-    if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD) {
+    if (dsp->devOutMode == SamplingDevice::DEV_OUT_RECORD) {
       fwrite(dsp->dspOutBuf[1-fill_buf], 1, dsp->dspOutBufSize, fpo);
-    } else if (dsp->devInMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
+    } else if (dsp->devOutMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
       fread(dsp->dspOutBuf[1-fill_buf], 1, dsp->dspOutBufSize, fpo);
     }
 
@@ -379,12 +377,12 @@ void soundoutputrunner(void* data) {
     }
     fill_buf = 1 - fill_buf;
 
-    if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD) {
+    if (dsp->devOutMode == SamplingDevice::DEV_OUT_RECORD) {
       fflush(fpo);
     }
   }
-  if (dsp->devInMode == SamplingDevice::DEV_OUT_RECORD ||
-      dsp->devInMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
+  if (dsp->devOutMode == SamplingDevice::DEV_OUT_RECORD ||
+      dsp->devOutMode == SamplingDevice::DEV_OUT_PLAY_FROM_FILE) {
     fclose(fpo);
   }
 

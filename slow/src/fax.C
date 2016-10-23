@@ -442,8 +442,8 @@ void Fax::setstate(int st) {
         helper->resumeWriting();
         /* old state is tx_ctl or rx_ctl */
         if (state == TX_CTL_STATE) {
-          // flushoutput();
-          // samplingDevice->discardInput();
+          //flushoutput();
+          samplingDevice->discardInput();
         }
         printf("******* init rx v29\n\r");
         modem->v29->initrx_v29();
