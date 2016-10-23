@@ -9,16 +9,13 @@ INVESTIGATION
 GENERAL
 	don't use exceptions, is slower in c++ to try/catch
 	get rid of virtual function calls for high volume loops?(get/put byte)
-	make sure all global veriables are removed
-	add sample in recorder and playback ability
+	make sure all global variables are removed
 	move v8 back into v8rx/tx classes to keep Modem cleaner
 	move tx/rxloop back into v21rx/tx classes to keep Modem cleaner
 	abort connect/answer or handshake on any character press during
 	remove args and use hayes to control v21/v23/v32/v34 etc
-        Find out why the bluetooth stack doesn't block!  Get rid of the
-        fake throttle if possible.
 
-HAYES
+HAYES TODO
 
     ATMn - nothing for software modem
     ATLn - nothing for software modem
