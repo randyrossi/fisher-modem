@@ -26,7 +26,7 @@ void inputrunner(void* data) {
   while (td->inbuffer->eof == false) {
     try {
       td->inbuffer->fill();
-    } catch (StdinReadException e) {
+    } catch (StdinReadException& e) {
       e.getMessage();
       td->inbuffer->eof = true;
     }
@@ -39,7 +39,7 @@ void outputrunner(void* data) {
   while (td->outbuffer->eof == false) {
     try {
       td->outbuffer->empty();
-    } catch (StdoutWriteException e) {
+    } catch (StdoutWriteException& e) {
       e.getMessage();
       td->outbuffer->eof = true;
     }
@@ -112,7 +112,7 @@ void TerminalDevice::dclose() {
 
   try {
     outbuffer->putch(EOF);
-  } catch (StdoutBufferOverflowException e) {
+  } catch (StdoutBufferOverflowException& e) {
     // ignore this since we are closing anyway
   }
 
@@ -147,13 +147,11 @@ void TerminalDevice::setmode(termios* tm) {
 
 // Never blocks, caller always get a value
 int TerminalDevice::inc() {
-  /* get char from stdin */
   return inbuffer->getch();
 }
 
-// Never blocks, caller always get a value
+// Will block if there is no char in the buffer.
 int TerminalDevice::incsynch() {
-  /* get char from stdin */
   return inbuffer->getchsynch();
 }
 
@@ -167,6 +165,7 @@ int Buffer::getch() {
   return c;
 }
 
+// Will block if there is no char in the buffer.
 int Buffer::getchsynch() {
   int c;
   pthread_mutex_lock(&bufferlock);
@@ -184,7 +183,6 @@ int Buffer::getchsynch() {
 // Never blocks, caller can always put a value
 void TerminalDevice::outc(int ch)  // throws StdoutBufferOverflowException
 {
-  /* put char to stdout */
   // TODO make this an option for testing purposes to avoid bells
   if (isPrintable(ch)) {
     outbuffer->putch(ch);
