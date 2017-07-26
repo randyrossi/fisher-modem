@@ -146,14 +146,14 @@ int Dsp::dopen() {
 
   if ((err = snd_pcm_open(&playback_handle, snd_device_out,
                           SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-    fprintf(stderr, "cannot open output audio device %s: %s\n", snd_device_in,
+    fprintf(stderr, "cannot open output audio device %s: %s\n", snd_device_out,
             snd_strerror(err));
     exit(1);
   }
 
   if ((err = snd_pcm_open(&capture_handle, snd_device_in,
                           SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-    fprintf(stderr, "cannot open input audio device %s: %s\n", snd_device_out,
+    fprintf(stderr, "cannot open input audio device %s: %s\n", snd_device_in,
             snd_strerror(err));
     exit(1);
   }
