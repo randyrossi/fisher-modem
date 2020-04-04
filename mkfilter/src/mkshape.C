@@ -34,7 +34,7 @@ static void usage(), initcircle(), computefilter(), compute_rc(), compute_ht();
 static void apply_window(), trunc_coeffs();
 static void printresults(char **), printcmdline(char **);
 static void fft(complex*, complex*, int);
-static void giveup(char*, int = 0);
+static void giveup(const char*, int = 0);
 
 global int main(int argc, char** argv) {
   readcmdline(argv);
@@ -307,7 +307,7 @@ static void fft(complex* data, complex* temp, int n) {
   }
 }
 
-static void giveup(char* msg, int p1) {
+static void giveup(const char* msg, int p1) {
   fprintf(stderr, "mkshape: ");
   fprintf(stderr, msg, p1);
   putc('\n', stderr);

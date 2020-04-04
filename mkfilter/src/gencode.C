@@ -19,10 +19,10 @@ static double pbgain;
 static enum { none, ansic, xyc, fifi } language;
 
 static void usage(), readcmdline(char *[]);
-static void compilefifi(), prshift(char *, int);
+static void compilefifi(), prshift(const char *, int);
 static void compileclear();
-static void comp_fir(), comp_iir(), pr_shiftdown(char *, int);
-static void pr_xcoeffs(), pr_xpart(char *), prxfac(double), pr_ypart(char *),
+static void comp_fir(), comp_iir(), pr_shiftdown(const char *, int);
+static void pr_xcoeffs(), pr_xpart(const char *), prxfac(double), pr_ypart(const char *),
     prnl();
 // static void pr_ycoeffs();
 // static void giveup(char*, int = 0, int = 0);
@@ -95,7 +95,7 @@ static void compilefifi() {
   printf("static fspec _fspecs_$ = { %d, %d, _fstepf_$ };\n\n", nzeros, npoles);
 }
 
-static void prshift(char* vs, int n) {
+static void prshift(const char* vs, int n) {
   if (n > 0) {
     for (int i = 0; i < n; i++) {
       if (i % 4 == 0)
@@ -173,7 +173,7 @@ static void comp_iir() {
   printf("  }\n\n");
 }
 
-static void pr_shiftdown(char* vs, int n) {
+static void pr_shiftdown(const char* vs, int n) {
   for (int i = 0; i < n; i++)
     printf("%s[%d] = %s[%d]; ", vs, i, vs, i + 1);
 }
@@ -199,7 +199,7 @@ static void pr_ycoeffs()
   }
 */
 
-static void pr_xpart(char* vs) { /* output contribution from X vec */
+static void pr_xpart(const char* vs) { /* output contribution from X vec */
   nxfacs = 0;
   for (int i = 0; i < (nzeros + 1) / 2; i++) {
     int j = nzeros - i;
@@ -257,7 +257,7 @@ static void prxfac(double x) {
   nxfacs++;
 }
 
-static void pr_ypart(char* vs) { /* output contribution from Y vec */
+static void pr_ypart(const char* vs) { /* output contribution from Y vec */
   for (int i = 0; i < npoles; i++) {
     if (i % 2 == 0)
       prnl();

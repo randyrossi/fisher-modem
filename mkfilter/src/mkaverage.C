@@ -14,7 +14,7 @@ static int numcoeffs;
 static void readcmdline(char**);
 static void usage();
 static void printresults(char **), printcmdline(char **);
-static void giveup(char*, int = 0);
+static void giveup(const char*, int = 0);
 
 global int main(int argc, char* argv[]) {
   readcmdline(argv);
@@ -75,7 +75,7 @@ static void printcmdline(char* argv[]) {
   putchar('\n');
 }
 
-static void giveup(char* msg, int p1) {
+static void giveup(const char* msg, int p1) {
   fprintf(stderr, "mkaverage: ");
   fprintf(stderr, msg, p1);
   putc('\n', stderr);

@@ -12,8 +12,8 @@
 
 static void rdcoeffs(char, int&, double*);
 static int rdint(char*);
-static double rddouble(char*);
-static void getline(char *, int &, int, char *), rdline(char *),
+static double rddouble(const char*);
+static void getline(char *, int &, int, const char *), rdline(char *),
     formaterror(int);
 
 global void readdata(char* cmdline,
@@ -48,14 +48,14 @@ static int rdint(char* exp) {
   return atoi(&vec[p]);
 }
 
-static double rddouble(char* exp) {
+static double rddouble(const char* exp) {
   char vec[MAXSTRING + 1];
   int p;
   getline(vec, p, 5, exp);
   return atof(&vec[p]);
 }
 
-static void getline(char* vec, int& p, int e, char* exp) {
+static void getline(char* vec, int& p, int e, const char* exp) {
   rdline(vec);
   p = strlen(exp);
   unless(memcmp(vec, exp, p) == 0) formaterror(e);

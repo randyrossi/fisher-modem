@@ -16,6 +16,10 @@ The original source may be found here:
 
 A cached copy of the above URLs are found in the 'fisher' directory in case they disappear from the internet.
 
+##Prereqs
+
+sudo apt-get install libbluetooth-dev
+
 ##What's Changed
 
 For those familiar with Dr. Fisher's original software modem project, here is a summary of what has changed:

@@ -25,7 +25,7 @@ typedef unsigned int uint;
 
 extern "C" {
 double atof(const char*);
-int atoi(char*);
+int atoi(const char*);
 void exit(int);
 };
 
@@ -35,7 +35,7 @@ extern void readdata(char*, double&, int&, double*, int&, double*);
 inline double sqr(double x) {
   return x * x;
 }
-inline bool seq(char* s1, char* s2) {
+inline bool seq(const char* s1, const char* s2) {
   return strcmp(s1, s2) == 0;
 }
 inline bool onebit(uint m) {

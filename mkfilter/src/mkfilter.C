@@ -87,7 +87,7 @@ static void readcmdline(char* []);
 static uint decodeoptions(char *), optbit(char);
 static double getfarg(char*);
 static int getiarg(char*);
-static void usage(), checkoptions(), opterror(char *, int = 0, int = 0),
+static void usage(), checkoptions(), opterror(const char *, int = 0, int = 0),
     setdefaults();
 static void compute_s(), choosepole(complex), prewarp(), normalize(),
     compute_z_blt();
@@ -99,8 +99,8 @@ static void compute_bpres(), add_extra_zero();
 static void expandpoly(), expand(complex[], int, complex[]),
     multin(complex, int, complex[]);
 static void printresults(char *[]), printcmdline(char *[]), printfilter(),
-    printgain(char *, complex);
-static void printcoeffs(char*, int, double[]);
+    printgain(const char *, complex);
+static void printcoeffs(const char*, int, double[]);
 static void printrat_s(), printrat_z(), printpz(complex *, int),
     printrecurrence(), prcomplex(complex);
 
@@ -331,7 +331,7 @@ static void checkoptions() {
   unless(optsok) exit(1);
 }
 
-static void opterror(char* msg, int p1, int p2) {
+static void opterror(const char* msg, int p1, int p2) {
   fprintf(stderr, "mkfilter: ");
   fprintf(stderr, msg, p1, p2);
   putc('\n', stderr);
@@ -649,7 +649,7 @@ static void printcmdline(char* argv[]) {
   putchar('\n');
 }
 
-static void printcoeffs(char* pz, int npz, double coeffs[]) {
+static void printcoeffs(const char* pz, int npz, double coeffs[]) {
   printf("%s = %d\n", pz, npz);
   for (int i = 0; i <= npz; i++)
     printf("%18.10e\n", coeffs[i]);
@@ -671,7 +671,7 @@ static void printfilter() {
   printrecurrence();
 }
 
-static void printgain(char* str, complex gain) {
+static void printgain(const char* str, complex gain) {
   double r = hypot(gain);
   printf("gain at %s:   mag = %15.9e", str, r);
   if (r > EPS)
