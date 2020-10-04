@@ -140,9 +140,22 @@ Dsp::~Dsp() {}
 int Dsp::dopen() {
   int err;
 
-  // TODO: Make these configurable.  These are for HDMI out and rec in.
-  char* snd_device_in = "plughw:0,0";
-  char* snd_device_out = "plughw:1,3";
+  // Use the default ALSA input and output audio. 
+  // TODO: allow user to specify an ALSA PCM on the command line.
+  char* snd_device_in = "default";
+  char* snd_device_out = "default";
+
+/* ALSA troubleshooting notes.
+
+   If ALSA tries to play sound out of the wrong card or if you get an
+   error, try setting the ALSA_CARD environment variable. For example,
+   'export ALSA_CARD=1' to use the second sound card detected. Or, you
+   can use a name like ALSA_CARD=PCH or ALSA_CARD=HDMI. Use 'cat
+   /proc/asound/card?/id' to see all options.
+
+   If you have troubles with PulseAudio interfering, you can try
+   stopping it with: systemctl --user stop pulseaudio.*
+*/
 
   if ((err = snd_pcm_open(&playback_handle, snd_device_out,
                           SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
